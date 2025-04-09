@@ -1,0 +1,4 @@
+Model: LSTM
+MSE: 1.7904
+RMSE: 1.3381
+R2 Score: 0.6404

@@ -1,0 +1,4 @@
+Model: Enhanced GNN
+MSE: 1.2979
+RMSE: 1.1393
+R2 Score: -0.3826

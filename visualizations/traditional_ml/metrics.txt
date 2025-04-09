@@ -1,0 +1,21 @@
+Traditional ML Models Performance Metrics
+=======================================
+
+Random Forest:
+Training Time: 4.23 seconds
+MSE: 0.5137
+RMSE: 0.5836
+R2 Score: 0.6266
+
+XGBoost:
+Training Time: 0.78 seconds
+MSE: 0.7983
+RMSE: 0.7087
+R2 Score: 0.4392
+
+LightGBM:
+Training Time: 0.49 seconds
+MSE: 0.5954
+RMSE: 0.6372
+R2 Score: 0.5534
+

@@ -1,0 +1,4 @@
+Model: GNN
+MSE: 8.4695
+RMSE: 2.9102
+R2 Score: -8.0222
