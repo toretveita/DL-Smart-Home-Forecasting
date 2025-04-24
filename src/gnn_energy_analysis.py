@@ -32,18 +32,17 @@ except ImportError as e:
 
 from sklearn.metrics import mean_squared_error, r2_score
 
+# Check GPU availability
 def setup_gpu():
     """Setup GPU if available"""
     print("\nChecking GPU availability...")
     
-    # Check PyTorch CUDA availability first
     if torch.cuda.is_available():
         print(f"PyTorch CUDA is available!")
         print(f"CUDA Device: {torch.cuda.get_device_name(0)}")
         print(f"Number of CUDA devices: {torch.cuda.device_count()}")
         return torch.device('cuda')
     
-    # If PyTorch CUDA is not available, check TensorFlow GPU
     if TENSORFLOW_AVAILABLE:
         try:
             physical_devices = tf.config.list_physical_devices()
@@ -314,10 +313,10 @@ class GNNModel(nn.Module):
         
         # Reshape input for processing
         batch_size, seq_len, _ = x.shape
-        x = x.view(-1, self.input_dim)  # (batch_size * sequence_length, input_dim)
+        x = x.view(-1, self.input_dim) 
         
-        # Input processing with residual connection
-        h = self.input_layer(x)  # (batch_size * sequence_length, hidden_dim)
+        # Input processing
+        h = self.input_layer(x)
         
         # Apply multi-head attention
         h = self.attention(h, edge_index)
@@ -332,7 +331,7 @@ class GNNModel(nn.Module):
             h = F.relu(h)
             h = torch.dropout(h, self.dropout, self.training)
         
-        # Output processing with residual connections
+        # Output processing
         out1 = self.output_layer1(h)
         out2 = self.output_layer2(out1)
         
@@ -343,14 +342,12 @@ class GNNModel(nn.Module):
         # Combine features
         combined_features = torch.cat([pattern_features, range_features], dim=1)
         
-        # Final prediction with range scaling
+        # Final prediction
         out = self.combine_layer(combined_features)
         out = out * self.range_scaling  # Scale the output to match the temperature range
-        
-        # Apply temperature offset
         out = out + self.temp_offset
         
-        # Reshape output
+    
         out = out.view(batch_size, seq_len, -1)  # (batch_size, sequence_length, output_dim)
         
         return out
@@ -363,14 +360,13 @@ def create_weighted_edges(sequences, targets, edge_indices):
     edge_weights = []
     
     for i, (seq, target, edge_index) in enumerate(zip(sequences, targets, edge_indices)):
-        # Convert to numpy for easier manipulation
         seq_np = seq.numpy()
         
-        # Calculate temporal weights (closer nodes have higher weights)
+        # Calculate temporal weights
         num_nodes = seq_np.shape[0]  # sequence length
         temporal_weights = np.exp(-np.abs(np.arange(num_nodes)[:, None] - np.arange(num_nodes)[None, :]) / 6)
         
-        # Calculate feature correlation weights for each node
+        # Calculate feature correlation weights
         feature_weights = np.zeros((num_nodes, num_nodes))
         for t1 in range(num_nodes):
             for t2 in range(num_nodes):
@@ -382,13 +378,10 @@ def create_weighted_edges(sequences, targets, edge_indices):
         # Combine weights
         combined_weights = temporal_weights * feature_weights
         
-        # Normalize weights
         combined_weights = combined_weights / (combined_weights.max() + 1e-8)
         
-        # Add self-loops
         edge_index, _ = add_self_loops(edge_index)
         
-        # Get edge weights
         edge_weight = combined_weights[edge_index[0], edge_index[1]]
         
         weighted_edge_indices.append(edge_index)
@@ -405,7 +398,7 @@ class MSELoss(nn.Module):
         self.mse = nn.MSELoss()
     
     def forward(self, pred, target):
-        # Regular MSE loss with increased weight
+        # Regular MSE loss
         mse_loss = 2.0 * self.mse(pred, target)
         
         # Pattern loss (difference between consecutive predictions vs actual)
@@ -421,12 +414,12 @@ class MSELoss(nn.Module):
         else:
             short_pattern_loss = torch.tensor(0.0, device=pred.device)
         
-        # Range loss with increased weight
+        # Range loss
         pred_range = pred.max() - pred.min()
         target_range = target.max() - target.min()
         range_loss = 5.0 * torch.abs(pred_range - target_range)
         
-        # Trend loss with increased weight
+        # Trend loss
         pred_trend = torch.sign(pred_diff)
         target_trend = torch.sign(target_diff)
         trend_loss = 3.0 * torch.mean(torch.abs(pred_trend - target_trend))
@@ -473,15 +466,15 @@ def train_model(model, train_loader, val_loader, num_epochs=15):
     
     model = model.to(device)
     
-    # Use AdamW optimizer with weight decay
+    # Use AdamW optimizer
     optimizer = optim.AdamW(model.parameters(), lr=0.001, weight_decay=0.005)
     
-    # Use OneCycleLR scheduler for better convergence
+    # Use OneCycleLR scheduler
     scheduler = optim.lr_scheduler.OneCycleLR(
-        optimizer,
+    optimizer,
         max_lr=0.001,
         epochs=num_epochs,
-        steps_per_epoch=len(train_loader),
+    steps_per_epoch=len(train_loader),
         pct_start=0.3,
         anneal_strategy='cos'
     )

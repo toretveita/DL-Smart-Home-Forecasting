@@ -6,7 +6,7 @@ from datetime import datetime
 import os
 import json
 import pandas as pd
-from train_lstm_model import LSTMModel  # Import the LSTM model class
+from train_lstm_model import LSTMModel
 
 print("Loading power_optimization.py...")
 
@@ -25,15 +25,13 @@ class PowerOptimizationAnalyzer:
         self.feature_scaler = StandardScaler()
         self.power_scalers = {}
         
-        # Fit scalers with all available data
-        print("Fitting scalers...")
         self._fit_scalers()
         
         # Load and prepare the trained LSTM model
         print(f"Loading LSTM model from {model_path}...")
         self.model = LSTMModel(input_size=13, hidden_size=512, num_layers=3)
         self.model.load_state_dict(torch.load(model_path))
-        self.model.eval()  # Set to evaluation mode
+        self.model.eval()
         
         print("PowerOptimizationAnalyzer initialization complete")
     
@@ -42,42 +40,36 @@ class PowerOptimizationAnalyzer:
         device_type = device_data['device_type'].iloc[0]
         print(f"\nPredicting power consumption for {device_type}...")
         
-        # Special handling for lighting - use brightness-based calculation
+   
         if device_type == 'Light':
             brightness = float(device_data['brightness'].iloc[0])
-            # Scale power based on brightness percentage
-            base_power = 100  # Base power for 100% brightness
+            base_power = 100
             predicted_power = (brightness / 100.0) * base_power
             predicted_power = np.clip(predicted_power, 5, 200)
             print(f"Brightness-based prediction for {device_type}: {predicted_power:.2f}W")
             return predicted_power
         
-        # For other devices, use the LSTM model
-        # Prepare sequence for prediction
         sequence = self._prepare_sequence(device_data)
-        
-        # Convert to tensor and add batch dimension
         sequence_tensor = torch.FloatTensor(sequence).unsqueeze(0)
         
         # Make prediction
         with torch.no_grad():
             prediction = self.model(sequence_tensor)
             
-        # Ensure prediction is in the right shape for inverse transform
         prediction = prediction.numpy().reshape(-1, 1)
         
-        # Get device type and corresponding scaler
+        # Get device type
         power_scaler = self.power_scalers.get(device_type)
         if power_scaler is None:
             print(f"Warning: No scaler found for {device_type}, using AC scaler")
             power_scaler = self.power_scalers['AC']
         
-        # Scale back to original scale
+        # Scale back to original
         prediction = power_scaler.inverse_transform(prediction)
         predicted_power = float(prediction[0][0])  # Convert to Python float
         print(f"Raw prediction for {device_type}: {predicted_power:.2f}W")
         
-        # Validate prediction based on device type and clip to reasonable ranges
+        # Validate prediction
         if device_type == 'AC':
             predicted_power = np.clip(predicted_power, 500, 3000)
         elif device_type == 'Water_Heater':
@@ -97,16 +89,13 @@ class PowerOptimizationAnalyzer:
         device_type = device_data['device_type'].iloc[0]
         recommendations = []
         
-        # Special handling for lighting
         if device_type == 'Light':
             brightness = float(device_data['brightness'].iloc[0])
             schedule = device_data['schedule'].iloc[0]
             
-            # Calculate expected power based on brightness
-            base_power = 100  # Base power for traditional bulb at 100% brightness
+            base_power = 100 
             expected_power = (brightness / 100.0) * base_power
             
-            # Generate lighting-specific recommendations
             if expected_power > 150:
                 recommendations.append("Switch to LED bulbs immediately (up to 90% energy savings)")
                 recommendations.append("Install motion sensors in low-traffic areas")
@@ -118,7 +107,6 @@ class PowerOptimizationAnalyzer:
                 recommendations.append("Consider installing dimmers for flexible control")
                 recommendations.append("Adjust brightness based on time of day")
             
-            # Add schedule-based recommendations
             if schedule == 'always_on':
                 recommendations.append("Consider using motion sensors or timers to reduce unnecessary usage")
             elif schedule == 'off_peak':
@@ -126,7 +114,6 @@ class PowerOptimizationAnalyzer:
             
             return recommendations
         
-        # For other devices, use the model prediction
         current_power = self.predict_power_consumption(device_data)
         
         if device_type == 'AC':
@@ -178,15 +165,13 @@ class PowerOptimizationAnalyzer:
         
         device_type = device_data['device_type'].iloc[0]
         
-        # Special handling for lighting
+
         if device_type == 'Light':
             brightness = float(device_data['brightness'].iloc[0])
-            # Calculate power based on brightness
-            base_power = 100  # Base power for traditional bulb at 100% brightness
+            base_power = 100
             current_power = (brightness / 100.0) * base_power
             current_power = np.clip(current_power, 5, 200)
         else:
-            # For other devices, use the model prediction
             current_power = self.predict_power_consumption(device_data)
         
         recommendations = self.generate_recommendations(device_id)
@@ -213,12 +198,12 @@ class PowerOptimizationAnalyzer:
         """Initialize feature mappings for device settings."""
         feature_mappings = {}
         
-        # Add numerical features
+        # numerical features
         numerical_features = ['temperature', 'brightness', 'fan_speed']
         for i, feature in enumerate(numerical_features):
             feature_mappings[feature] = {'type': 'numerical', 'index': i}
         
-        # Add categorical features
+        # categorical features
         categorical_features = {
             'device_type': ['AC', 'Light'],
             'schedule': ['always_on', 'off_peak', 'motion_sensor']
@@ -238,34 +223,34 @@ class PowerOptimizationAnalyzer:
     
     def _fit_scalers(self):
         """Fit scalers with all available data."""
-        # Prepare all features
+
         all_features = []
-        device_type_power = {}  # Track power consumption by device type
+        device_type_power = {}  
         
-        # First, collect all features without scaling
+        # collect all features without scaling
         for device_id in self.device_settings['device_id'].unique():
             device_data = self.device_settings[self.device_settings['device_id'] == device_id]
             device_type = device_data['device_type'].iloc[0]
             
-            # Initialize feature array
+            # feature array
             features = np.zeros((len(device_data), 13))  # 13 features as per training
             
-            # 1. Original features
+            # Original features
             features[:, 0] = device_data['temperature'].values
             features[:, 1] = device_data['brightness'].values
             
-            # 2. Fan speed one-hot encoding (3 features)
+            # Fan speed 
             if 'fan_speed' in device_data.columns:
                 features[:, 2] = (device_data['fan_speed'] == 'low').astype(int)
                 features[:, 3] = (device_data['fan_speed'] == 'medium').astype(int)
                 features[:, 4] = (device_data['fan_speed'] == 'high').astype(int)
             
-            # 3. Schedule one-hot encoding (3 features)
+            # one-hot encoding
             features[:, 5] = (device_data['schedule'] == 'always_on').astype(int)
             features[:, 6] = (device_data['schedule'] == 'off_peak').astype(int)
             features[:, 7] = (device_data['schedule'] == 'motion_sensor').astype(int)
             
-            # 4. Temporal features (5 features)
+            # Temporal features
             if 'timestamp' in device_data.columns:
                 timestamps = pd.to_datetime(device_data['timestamp'])
                 features[:, 8] = timestamps.dt.hour.values / 24  # Normalized hour
@@ -276,7 +261,7 @@ class PowerOptimizationAnalyzer:
             
             all_features.append(features)
             
-            # Get corresponding power consumption
+            # Get power consumption
             power_data = self.power_consumption[self.power_consumption['device_id'] == device_id]
             if not power_data.empty:
                 if device_type not in device_type_power:
@@ -287,13 +272,12 @@ class PowerOptimizationAnalyzer:
         all_features = np.vstack(all_features)
         self.feature_scaler.fit(all_features)
         
-        # Initialize power scalers for each device type
         self.power_scalers = {}
         for device_type, power_values in device_type_power.items():
             scaler = StandardScaler()
             power_values = np.array(power_values).reshape(-1, 1)
             
-            # Apply reasonable bounds before fitting scaler
+            # Apply bounds
             if device_type == 'AC':
                 power_values = np.clip(power_values, 500, 3000)
             elif device_type == 'Light':
@@ -308,25 +292,21 @@ class PowerOptimizationAnalyzer:
     
     def _prepare_sequence(self, device_data):
         """Prepare input sequence for the LSTM model."""
-        # Initialize feature array
         features = np.zeros((len(device_data), 13))  # 13 features as per training
         
-        # 1. Original features
+       
         features[:, 0] = device_data['temperature'].values
         features[:, 1] = device_data['brightness'].values
         
-        # 2. Fan speed one-hot encoding (3 features)
         if 'fan_speed' in device_data.columns:
             features[:, 2] = (device_data['fan_speed'] == 'low').astype(int)
             features[:, 3] = (device_data['fan_speed'] == 'medium').astype(int)
             features[:, 4] = (device_data['fan_speed'] == 'high').astype(int)
         
-        # 3. Schedule one-hot encoding (3 features)
         features[:, 5] = (device_data['schedule'] == 'always_on').astype(int)
         features[:, 6] = (device_data['schedule'] == 'off_peak').astype(int)
         features[:, 7] = (device_data['schedule'] == 'motion_sensor').astype(int)
         
-        # 4. Temporal features (5 features)
         if 'timestamp' in device_data.columns:
             timestamps = pd.to_datetime(device_data['timestamp'])
             features[:, 8] = timestamps.dt.hour.values / 24  # Normalized hour
@@ -335,41 +315,37 @@ class PowerOptimizationAnalyzer:
             features[:, 11] = ((timestamps.dt.hour >= 17) & (timestamps.dt.hour <= 21)).astype(int)  # Peak hours
             features[:, 12] = ((timestamps.dt.hour < 6) | (timestamps.dt.hour >= 22)).astype(int)  # Night
         
-        # Scale features
         features = self.feature_scaler.transform(features)
         
         return features
 
 def main():
     """Main function to demonstrate usage"""
-    # Initialize analyzer with data paths and LSTM model
     analyzer = PowerOptimizationAnalyzer(
         device_settings_path='data/device_settings.csv',
         power_consumption_path='data/power_consumption.csv',
-        model_path='models/lstm_best_model.pth'  # Updated to use the correct model file extension
+        model_path='models/lstm_best_model.pth'
     )
     
-    # Generate report for all devices
+    # Generate report
     report = analyzer.generate_report()
     
     # Save report
     print("\nSaving report...")
     with open('reports/power_optimization_report.csv', 'w') as f:
-        # Write header
         f.write("device_id,device_type,current_power,recommendations\n")
-        
-        # Write data
+
         for row in report:
-            # Convert recommendations to string
+ 
             recs = []
             for rec in row['recommendations']:
                 recs.append(rec)
             recommendations = "; ".join(recs)
             
-            # Write row
+
             f.write(f"{row['device_id']},{row['device_type']},{row['current_power']:.2f},\"{recommendations}\"\n")
     
-    # Print summary
+    # summary
     print("\nPower Optimization Analysis Summary:")
     print(f"Total devices analyzed: {len(report)}")
     total_power = sum(row['current_power'] for row in report)

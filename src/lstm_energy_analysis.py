@@ -133,14 +133,12 @@ def create_sequences(features, targets, sequence_length):
 
 def preprocess_data(df):
     """Enhanced data preprocessing with robust scaling and feature engineering"""
-    # Create a copy to avoid modifying the original dataframe
     df_processed = df.copy()
     
-    # Drop timestamp column as it's not needed for the model
     if 'timestamp' in df_processed.columns:
         df_processed = df_processed.drop('timestamp', axis=1)
     
-    # Add more temporal features
+    # more temporal features
     df_processed['hour_sin'] = np.sin(2 * np.pi * df_processed['hour'] / 24)
     df_processed['hour_cos'] = np.cos(2 * np.pi * df_processed['hour'] / 24)
     df_processed['day_sin'] = np.sin(2 * np.pi * df_processed['day_of_week'] / 7)
@@ -148,30 +146,28 @@ def preprocess_data(df):
     df_processed['month_sin'] = np.sin(2 * np.pi * df_processed['month'] / 12)
     df_processed['month_cos'] = np.cos(2 * np.pi * df_processed['month'] / 12)
     
-    # Add lag features
+    # lag features
     df_processed['device_1_lag1'] = df_processed['device_1'].shift(1)
     df_processed['device_1_lag24'] = df_processed['device_1'].shift(24)
     df_processed['device_3_lag1'] = df_processed['device_3'].shift(1)
     df_processed['device_3_lag24'] = df_processed['device_3'].shift(24)
     
-    # Add rolling statistics
+    # rolling statistics
     df_processed['device_1_rolling_mean'] = df_processed['device_1'].rolling(window=24).mean()
     df_processed['device_1_rolling_std'] = df_processed['device_1'].rolling(window=24).std()
     df_processed['device_3_rolling_mean'] = df_processed['device_3'].rolling(window=24).mean()
     df_processed['device_3_rolling_std'] = df_processed['device_3'].rolling(window=24).std()
     
-    # Fill NaN values created by lag and rolling features
     df_processed = df_processed.ffill().bfill()
     
-    # Extract target variable
     target = df_processed['device_2'].copy()
     df_processed = df_processed.drop('device_2', axis=1)
     
-    # Robust scaling of features
+    # scaling of features
     scaler_x = RobustScaler()
     scaler_y = RobustScaler()
     
-    # Scale features and target separately
+    # Scale features and target
     df_processed = pd.DataFrame(
         scaler_x.fit_transform(df_processed),
         columns=df_processed.columns
@@ -184,22 +180,22 @@ def preprocess_data(df):
 def create_lstm_model(input_shape, output_shape):
     """Create an improved LSTM model with bidirectional layers and residual connections"""
     model = Sequential([
-        # First Bidirectional LSTM layer
+        # First LSTM layer
         Bidirectional(LSTM(128, return_sequences=True), input_shape=input_shape),
         BatchNormalization(),
         Dropout(0.2),
         
-        # Second Bidirectional LSTM layer with residual connection
+        # Second LSTM layer
         Bidirectional(LSTM(64, return_sequences=True)),
         BatchNormalization(),
         Dropout(0.2),
         
-        # Third Bidirectional LSTM layer
+        # Third LSTM layer
         Bidirectional(LSTM(32)),
         BatchNormalization(),
         Dropout(0.2),
         
-        # Dense layers with residual connections
+        # Dense layers
         Dense(64, activation='relu'),
         BatchNormalization(),
         Dropout(0.1),
@@ -211,7 +207,7 @@ def create_lstm_model(input_shape, output_shape):
         Dense(output_shape)
     ])
     
-    # Compile with improved optimizer settings
+    # Compile
     optimizer = Adam(
         learning_rate=0.001,
         beta_1=0.9,
@@ -222,7 +218,7 @@ def create_lstm_model(input_shape, output_shape):
     
     model.compile(
         optimizer=optimizer,
-        loss='huber',  # More robust to outliers than MSE
+        loss='huber',
         metrics=['mae', 'mse']
     )
     
@@ -239,7 +235,7 @@ def train_model(model, X_train, y_train, X_val, y_val):
         verbose=1
     )
     
-    # Early stopping with restoration of best weights
+    # Early stopping
     early_stopping = EarlyStopping(
         monitor='val_loss',
         patience=10,
@@ -247,7 +243,6 @@ def train_model(model, X_train, y_train, X_val, y_val):
         verbose=1
     )
     
-    # Model checkpoint
     model_checkpoint = ModelCheckpoint(
         'models/lstm_best_model.h5',
         monitor='val_loss',
@@ -255,7 +250,7 @@ def train_model(model, X_train, y_train, X_val, y_val):
         verbose=1
     )
     
-    # Training with class weights if data is imbalanced
+    # Training with class weights
     history = model.fit(
         X_train, y_train,
         validation_data=(X_val, y_val),
@@ -276,37 +271,24 @@ def analyze_data_distribution(data):
     print("\nData Distribution Analysis:")
     print("-" * 50)
     
-    # Analyze by hour
     print("\nSamples per hour:")
     print(data['hour'].value_counts().sort_index())
-    
-    # Analyze by day of week
     print("\nSamples per day of week:")
     print(data['day_of_week'].value_counts().sort_index())
-    
-    # Analyze by month
     print("\nSamples per month:")
     print(data['month'].value_counts().sort_index())
     
     # Plot distributions
     plt.figure(figsize=(15, 10))
-    
-    # Hour distribution
     plt.subplot(2, 2, 1)
     sns.histplot(data['hour'], bins=24)
     plt.title('Distribution by Hour')
-    
-    # Day of week distribution
     plt.subplot(2, 2, 2)
     sns.histplot(data['day_of_week'], bins=7)
     plt.title('Distribution by Day of Week')
-    
-    # Month distribution
     plt.subplot(2, 2, 3)
     sns.histplot(data['month'], bins=12)
     plt.title('Distribution by Month')
-    
-    # Device values distribution
     plt.subplot(2, 2, 4)
     for device in ['device_1', 'device_2', 'device_3']:
         sns.kdeplot(data[device], label=device)
@@ -319,7 +301,7 @@ def analyze_data_distribution(data):
 
 def main():
     try:
-        # Set random seed for reproducibility
+        # Set random seed
         np.random.seed(42)
         if TENSORFLOW_AVAILABLE:
             tf.random.set_seed(42)
@@ -343,7 +325,6 @@ def main():
         print(f"\nLoading data from: {data_path}")
         df = load_data(data_path)
         
-        # Basic data exploration
         print("\nData Shape:", df.shape)
         print("\nFirst few rows:")
         print(df.head())

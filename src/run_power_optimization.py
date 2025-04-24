@@ -4,7 +4,6 @@ import numpy as np
 
 print("Starting script...")
 
-# Add the src directory to the Python path
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 print("Importing PowerOptimizationAnalyzer...")
@@ -12,37 +11,31 @@ from src.power_optimization_v2 import PowerOptimizationAnalyzer
 
 def main():
     print("Creating reports directory...")
-    # Create reports directory if it doesn't exist
     if not os.path.exists('reports'):
         os.makedirs('reports')
     
     print("Initializing analyzer...")
-    # Initialize analyzer with data paths and LSTM model
     analyzer = PowerOptimizationAnalyzer(
         device_settings_path='data/device_settings.csv',
         power_consumption_path='data/power_consumption.csv',
-        model_path='models/lstm_best_model.pth'  # Using our best LSTM model
+        model_path='models/lstm_best_model.pth'
     )
     
-    # Generate report for all devices
+    # Generate report
     print("\nGenerating power optimization report...")
     report = analyzer.generate_report()
     
     # Save report
     print("Saving report...")
     with open('reports/power_optimization_report.csv', 'w') as f:
-        # Write header
         f.write("device_id,device_type,current_power,recommendations\n")
         
-        # Write data
         for row in report:
-            # Convert recommendations to string
             recs = "; ".join(row['recommendations'])
             
-            # Write row
             f.write(f"{row['device_id']},{row['device_type']},{row['current_power']:.2f},\"{recs}\"\n")
     
-    # Print summary
+    # summary
     print("\nPower Optimization Analysis Summary:")
     print(f"Total devices analyzed: {len(report)}")
     total_power = sum(row['current_power'] for row in report)
